@@ -1422,7 +1422,7 @@ func (c *RuncContainer) RuncCheckpoint(criuOpts *CriuOpts, pid int, runcRoot str
 	// Note cgroup v2 freezer is only supported since CRIU release 3.14.
 	if !cgroups.IsCgroup2UnifiedMode() || c.checkCriuVersion(31400) == nil {
 		if fcg := c.CgroupManager.Path("freezer"); fcg != "" {
-			rpcOpts.FreezeCgroup = proto.String(fcg)
+			rpcOpts.FreezeCgroup = proto.String(filepath.Join("/host", fcg))
 		}
 	}
 
