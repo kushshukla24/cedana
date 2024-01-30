@@ -21,7 +21,10 @@ import (
 
 	"github.com/cedana/cedana/utils"
 	"github.com/cedana/runc/libcontainer/cgroups"
+	"github.com/cedana/runc/libcontainer/cgroups/fs"
+	"github.com/cedana/runc/libcontainer/cgroups/fs2"
 	"github.com/cedana/runc/libcontainer/cgroups/manager"
+	"github.com/cedana/runc/libcontainer/cgroups/systemd"
 	"github.com/cedana/runc/libcontainer/configs"
 	"github.com/cedana/runc/libcontainer/system"
 	"github.com/checkpoint-restore/go-criu/v6"
@@ -512,12 +515,91 @@ func (n *loadedState) transition(s containerState) error {
 	return nil
 }
 
-// func (n *loadedState) destroy() error {
-// 	if err := n.c.refreshState(); err != nil {
-// 		return err
-// 	}
-// 	return n.c.state.destroy()
-// }
+//	func (n *loadedState) destroy() error {
+//		if err := n.c.refreshState(); err != nil {
+//			return err
+//		}
+//		return n.c.state.destroy()
+//	}
+//
+
+// // getUnifiedPath is an implementation detail of libcontainer.
+// Historically, libcontainer.Create saves cgroup paths as per-subsystem path
+// map (as returned by cm.GetPaths(""), but with v2 we only have one single
+// unified path (with "" as a key).
+//
+// This function converts from that map to string (using "" as a key),
+// and also checks that the map itself is sane.
+func getUnifiedPath(paths map[string]string) (string, error) {
+	if len(paths) > 1 {
+		return "", fmt.Errorf("expected a single path, got %+v", paths)
+	}
+	path := paths[""]
+	// can be empty
+	if path != "" {
+		if filepath.Clean(path) != path || !filepath.IsAbs(path) {
+			return "", fmt.Errorf("invalid path: %q", path)
+		}
+	}
+
+	return path, nil
+}
+
+var (
+	isRunningSystemdOnce sync.Once
+	isRunningSystemd     bool
+)
+
+// NOTE: This function comes from package github.com/coreos/go-systemd/util
+// It was borrowed here to avoid a dependency on cgo.
+//
+// IsRunningSystemd checks whether the host was booted with systemd as its init
+// system. This functions similarly to systemd's `sd_booted(3)`: internally, it
+// checks whether /run/systemd/system/ exists and is a directory.
+// http://www.freedesktop.org/software/systemd/man/sd_booted.html
+func IsRunningSystemd() bool {
+	isRunningSystemdOnce.Do(func() {
+		_, err := os.Lstat("/run/systemd/system")
+		isRunningSystemd = err == nil
+	})
+	return isRunningSystemd
+}
+
+// NewWithPaths is similar to New, and can be used in case cgroup paths
+// are already well known, which can save some resources.
+//
+// For cgroup v1, the keys are controller/subsystem name, and the values
+// are absolute filesystem paths to the appropriate cgroups.
+//
+// For cgroup v2, the only key allowed is "" (empty string), and the value
+// is the unified cgroup path.
+func NewWithPaths(config *configs.Cgroup, paths map[string]string) (cgroups.Manager, error) {
+	if config == nil {
+		return nil, errors.New("cgroups/manager.New: config must not be nil")
+	}
+	if config.Systemd && !IsRunningSystemd() {
+		return nil, errors.New("systemd not running on this host, cannot use systemd cgroups manager")
+	}
+
+	// Cgroup v2 aka unified hierarchy.
+	if cgroups.IsCgroup2UnifiedMode() {
+		path, err := getUnifiedPath(paths)
+		if err != nil {
+			return nil, fmt.Errorf("manager.NewWithPaths: inconsistent paths: %w", err)
+		}
+		if config.Systemd {
+			return systemd.NewUnifiedManager(config, path)
+		}
+		return fs2.NewManager(config, path)
+	}
+
+	// Cgroup v1.
+	if config.Systemd {
+		return systemd.NewLegacyManager(config, paths)
+	}
+
+	return fs.NewManager(config, paths)
+}
 
 func GetContainerFromRunc(containerID string, root string) *RuncContainer {
 	// Runc root
@@ -531,12 +613,12 @@ func GetContainerFromRunc(containerID string, root string) *RuncContainer {
 	criu := criu.MakeCriu()
 	criuVersion, err := criu.GetCriuVersion()
 	if err != nil {
-		l.Fatal().Err(err).Msg("could not get criu version")
+		l.Error().Err(err).Msg("could not get criu version")
 	}
 	root = root + "/" + containerID
 	state, err := loadState(root)
 	if err != nil {
-		l.Fatal().Err(err).Msg("could not load state")
+		l.Error().Err(err).Msg("could not load state")
 	}
 
 	r := &nonChildProcess{
@@ -545,9 +627,9 @@ func GetContainerFromRunc(containerID string, root string) *RuncContainer {
 		fds:              state.ExternalDescriptors,
 	}
 
-	cgroupManager, err := manager.NewWithPaths(state.Config.Cgroups, state.CgroupPaths)
+	cgroupManager, err := NewWithPaths(state.Config.Cgroups, state.CgroupPaths)
 	if err != nil {
-		l.Fatal().Err(err).Msg("could not create cgroup manager")
+		l.Error().Err(err).Msg("could not create cgroup manager")
 	}
 
 	c := &RuncContainer{
