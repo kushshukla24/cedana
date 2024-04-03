@@ -76,6 +76,7 @@ func GetContainerIdByName(containerName string, root string) (string, string, er
 			}
 		}
 
+		// TODO the prefixing here is for k3s only, or !cedana-helper. Meaning that Cedana is running inside the Cedana Daemonset deployment and not on host
 		configPath := filepath.Join(filepath.Join("/host", bundle), "config.json")
 		if _, err := os.Stat(configPath); err == nil {
 			configFile, err := os.ReadFile(configPath)
