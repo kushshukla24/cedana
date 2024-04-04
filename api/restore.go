@@ -402,6 +402,7 @@ func (c *Client) RuncRestore(ctx context.Context, imgPath, containerId string, i
 			}
 		}
 	}()
+
 	return nil
 }
 
