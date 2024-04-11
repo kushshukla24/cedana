@@ -8,10 +8,19 @@ import (
 	"github.com/checkpoint-restore/go-criu/v7/crit"
 )
 
-func ReadFds(imageDir string) (map[string]string, error) {
+type Crit struct {
+	critter crit.Critter
+}
+
+func New(imageDir string) *Crit {
 	c := crit.New(nil, nil, imageDir, false, false)
 
-	fds, err := c.ExploreFds()
+	return &Crit{critter: c}
+}
+
+func (c *Crit) ReadCgroupFds() (map[string]string, error) {
+
+	fds, err := c.critter.ExploreFds()
 	if err != nil {
 		return nil, fmt.Errorf("failed to explore fds: %w", err)
 	}

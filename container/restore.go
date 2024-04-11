@@ -165,6 +165,7 @@ func RuncRestore(imgPath string, containerId string, opts RuncOpts) error {
 		}
 	}
 
+	// NOTE this is a second level higher than rpc.CriuOpts, these get passed to rpc.CriuOpts in runner.Run() in container package
 	criuOpts := CriuOpts{
 		ImagesDirectory: imgPath,
 		WorkDirectory:   "",
