@@ -279,6 +279,20 @@ func (c *Client) RuncDump(ctx context.Context, root, containerId string, opts *c
 	}
 	bundle := Bundle{ContainerId: containerId}
 	runcContainer := container.GetContainerFromRunc(containerId, root)
+
+	// TODO NR:add another check here for task running w/ accel resources
+	var GPUCheckpointed bool
+	if os.Getenv("CEDANA_GPU_ENABLED") == "true" {
+		err := c.gpuCheckpoint(ctx, opts.ImagesDirectory)
+		if err != nil {
+			return err
+		}
+		GPUCheckpointed = true
+		if err != nil {
+			return err
+		}
+	}
+
 	err := runcContainer.RuncCheckpoint(opts, runcContainer.Pid, root, runcContainer.Config)
 	if err != nil {
 		dumpSpan.RecordError(err)
@@ -306,6 +320,8 @@ func (c *Client) RuncDump(ctx context.Context, root, containerId string, opts *c
 
 	// CRIU ntfy hooks get run before this,
 	// so have to ensure that image files aren't tampered with
+	state.GPUCheckpointed = GPUCheckpointed
+
 	c.postDump(ctx, opts.ImagesDirectory, state)
 	c.cleanupClient()
 

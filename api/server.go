@@ -288,10 +288,11 @@ func (s *service) RuncDump(ctx context.Context, args *task.RuncDumpArgs) (*task.
 		return nil, err
 	}
 	s.client.generateState(int32(pid))
+
 	var state task.ProcessState
 
 	state.Flag = task.FlagEnum_JOB_RUNNING
-	state.PID = int32(pid)
+	state.PID = int32(12312)
 
 	err = s.client.db.CreateOrUpdateCedanaProcess(jobId, &state)
 	if err != nil {
