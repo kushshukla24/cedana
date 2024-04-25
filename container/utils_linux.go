@@ -1226,7 +1226,7 @@ func logCriuErrors(dir, file string) {
 		logrus.Warnf("read %q: %v", logFile, err)
 	}
 }
-func (c *RuncContainer) Restore(process *Process, criuOpts *CriuOpts, runcRoot string, bundle string, netPid int) error {
+func (c *RuncContainer) Restore(process *Process, criuOpts *CriuOpts, runcRoot string, bundle string, netPid int, nfy *cedanaUtils.Notify) error {
 	const logFile = "restore.log"
 	c.M.Lock()
 	defer c.M.Unlock()
@@ -1336,6 +1336,8 @@ func (c *RuncContainer) Restore(process *Process, criuOpts *CriuOpts, runcRoot s
 		}
 	}
 
+	// Inherit nvidia host mountpoints
+
 	if criuOpts.LsmProfile != "" {
 		// CRIU older than 3.16 has a bug which breaks the possibility
 		// to set a different LSM profile.
@@ -1436,9 +1438,10 @@ func (c *RuncContainer) Restore(process *Process, criuOpts *CriuOpts, runcRoot s
 			req.Opts.InheritFd = append(req.Opts.InheritFd, inheritFd)
 		}
 	}
-	err = c.criuSwrk(process, req, criuOpts, extraFiles)
+	err = c.criuSwrk(process, req, criuOpts, extraFiles, nfy)
 	if err != nil {
 		logCriuErrors(logDir, logFile)
+		return err
 	}
 
 	// Now that CRIU is done let's close all opened FDs CRIU needed.
@@ -1467,7 +1470,7 @@ type Runner struct {
 	netPid          int
 }
 
-func (r *Runner) Run(config *specs.Process, runcRoot string) (int, error) {
+func (r *Runner) Run(config *specs.Process, runcRoot string, nfy *cedanaUtils.Notify) (int, error) {
 	logger := cedanaUtils.GetLogger()
 	var err error
 	defer func() {
@@ -1519,7 +1522,7 @@ func (r *Runner) Run(config *specs.Process, runcRoot string) (int, error) {
 
 	switch r.action {
 	case CT_ACT_RESTORE:
-		err = r.container.Restore(process, r.criuOpts, runcRoot, r.bundle, r.netPid)
+		err = r.container.Restore(process, r.criuOpts, runcRoot, r.bundle, r.netPid, nfy)
 	default:
 		panic("Unknown action")
 	}
@@ -1710,5 +1713,5 @@ func StartContainer(context *RuncOpts, action CtAct, criuOpts *CriuOpts) (int, e
 		bundle:          context.Bundle,
 		netPid:          context.NetPid,
 	}
-	return r.Run(spec.Process, context.Root)
+	return r.Run(spec.Process, context.Root, &criuOpts.Notify)
 }

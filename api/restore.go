@@ -390,6 +390,25 @@ func (c *Client) RuncRestore(ctx context.Context, imgPath, containerId string, i
 		}
 	}
 
+	nfy := utils.Notify{
+		Logger: c.logger,
+	}
+
+	uid := uint32(os.Getuid())
+	gid := uint32(os.Getgid())
+
+	if os.Getenv("CEDANA_GPU_ENABLED") == "true" {
+		nfy.PreResumeFunc = utils.NotifyFunc{
+			Avail: true,
+			Callback: func() error {
+				var err error
+				_, err = c.gpuRestore(ctx, imgPath, uid, gid)
+				return err
+			},
+		}
+		opts.Notify = nfy
+	}
+
 	err := container.RuncRestore(imgPath, containerId, *opts)
 	if err != nil {
 		return err
@@ -402,6 +421,7 @@ func (c *Client) RuncRestore(ctx context.Context, imgPath, containerId string, i
 			}
 		}
 	}()
+
 	return nil
 }
 

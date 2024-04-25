@@ -108,7 +108,7 @@ func (c *RuncContainer) checkCriuFeatures(criuOpts *CriuOpts, rpcOpts *criurpc.C
 		Features: criuFeat,
 	}
 
-	err := c.criuSwrk(nil, req, criuOpts, nil)
+	err := c.criuSwrk(nil, req, criuOpts, nil, nil)
 	if err != nil {
 		logger.Debug().Msgf("%s", err)
 		return errors.New("CRIU feature check failed")

@@ -34,6 +34,7 @@ type RuncOpts struct {
 	PreserveFds     int
 	Pid             int
 	NetPid          int
+	Notify          utils.Notify
 }
 
 func Restore(imgPath string, containerID string) error {
@@ -141,6 +142,35 @@ func containerdRestore(id string, ref string) error {
 	return nil
 }
 
+// TODO Temp solution to looping over external nvidia mounts
+var nvidiaExternalMounts = map[string]string{
+	"/proc/driver/nvidia/gpus/0000:01:00.0":                        "/proc/driver/nvidia/gpus/0000:01:00.0",
+	"/run/nvidia-persistenced/socket":                              "/run/nvidia-persistenced/socket",
+	"/usr/lib/firmware/nvidia/550.67/gsp_tu10x.bin":                "/usr/lib/firmware/nvidia/550.67/gsp_tu10x.bin",
+	"/usr/lib/firmware/nvidia/550.67/gsp_ga10x.bin":                "/usr/lib/firmware/nvidia/550.67/gsp_ga10x.bin",
+	"/usr/lib/x86_64-linux-gnu/libnvidia-nvvm.so.550.67":           "/usr/lib/x86_64-linux-gnu/libnvidia-nvvm.so.550.67",
+	"/usr/lib/x86_64-linux-gnu/libnvidia-allocator.so.550.67":      "/usr/lib/x86_64-linux-gnu/libnvidia-allocator.so.550.67",
+	"/usr/lib/x86_64-linux-gnu/libnvidia-ptxjitcompiler.so.550.67": "/usr/lib/x86_64-linux-gnu/libnvidia-ptxjitcompiler.so.550.67",
+	"/usr/lib/x86_64-linux-gnu/libnvidia-opencl.so.550.67":         "/usr/lib/x86_64-linux-gnu/libnvidia-opencl.so.550.67",
+	"/usr/lib/x86_64-linux-gnu/libcudadebugger.so.550.67":          "/usr/lib/x86_64-linux-gnu/libcudadebugger.so.550.67",
+	"/usr/lib/x86_64-linux-gnu/libcuda.so.550.67":                  "/usr/lib/x86_64-linux-gnu/libcuda.so.550.67",
+	"/usr/lib/x86_64-linux-gnu/libnvidia-cfg.so.550.67":            "/usr/lib/x86_64-linux-gnu/libnvidia-cfg.so.550.67",
+	"/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.550.67":             "/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.550.67",
+	"/usr/bin/nvidia-cuda-mps-server":                              "/usr/bin/nvidia-cuda-mps-server",
+	"/usr/bin/nvidia-cuda-mps-control":                             "/usr/bin/nvidia-cuda-mps-control",
+	"/usr/bin/nvidia-persistenced":                                 "/usr/bin/nvidia-persistenced",
+	"/usr/bin/nvidia-debugdump":                                    "/usr/bin/nvidia-debugdump",
+	"/usr/bin/nvidia-smi":                                          "/usr/bin/nvidia-smi",
+}
+
+var nvidiaExternalDevMounts = map[string]string{
+	"/dev/nvidia0":          "/dev/nvidia0",
+	"/dev/nvidia-uvm-tools": "/dev/nvidia-uvm-tools",
+	"/dev/nvidia-uvm":       "/dev/nvidia-uvm",
+	"/dev/nvidiactl":        "/dev/nvidiactl",
+	"/dev/shm":              "/dev/shm",
+}
+
 func RuncRestore(imgPath string, containerId string, opts RuncOpts) error {
 	var spec rspec.Spec
 
@@ -165,12 +195,23 @@ func RuncRestore(imgPath string, containerId string, opts RuncOpts) error {
 		}
 	}
 
+	// TODO need better way to find if process is gpu -> from our kv store higher up in stack
+	if os.Getenv("CEDANA_GPU_ENABLED") == "true" {
+		for _, m := range nvidiaExternalMounts {
+			externalMounts = append(externalMounts, fmt.Sprintf("mnt[%s]:%s", m, m))
+		}
+		for _, d := range nvidiaExternalDevMounts {
+			externalMounts = append(externalMounts, fmt.Sprintf("mnt[%s]:%s", d, d))
+		}
+	}
+
 	criuOpts := CriuOpts{
 		ImagesDirectory: imgPath,
 		WorkDirectory:   "",
 		External:        externalMounts,
 		MntnsCompatMode: true,
 		TcpClose:        true,
+		Notify:          opts.Notify,
 	}
 
 	runcOpts := &RuncOpts{

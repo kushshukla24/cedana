@@ -293,7 +293,7 @@ func (c *Client) RuncDump(ctx context.Context, root, containerId string, opts *c
 		}
 	}
 
-	err := runcContainer.RuncCheckpoint(opts, runcContainer.Pid, root, runcContainer.Config)
+	err := runcContainer.RuncCheckpoint(opts, runcContainer.Pid, root, runcContainer.Config, nil)
 	if err != nil {
 		dumpSpan.RecordError(err)
 		c.logger.Fatal().Err(err)

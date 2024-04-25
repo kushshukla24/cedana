@@ -372,7 +372,7 @@ func newRestoredProcess(cmd *exec.Cmd, fds []string) (*restoredProcess, error) {
 	}, nil
 }
 
-func (c *RuncContainer) criuNotifications(resp *criurpc.CriuResp, process *Process, cmd *exec.Cmd, opts *CriuOpts, fds []string, oob []byte) error {
+func (c *RuncContainer) criuNotifications(resp *criurpc.CriuResp, process *Process, cmd *exec.Cmd, opts *CriuOpts, fds []string, oob []byte, nfy *utils.Notify) error {
 	notify := resp.GetNotify()
 	if notify == nil {
 		return fmt.Errorf("invalid response: %s", resp.String())
@@ -466,7 +466,13 @@ func (c *RuncContainer) criuNotifications(resp *criurpc.CriuResp, process *Proce
 			_ = unix.Close(opts.StatusFd)
 			opts.StatusFd = -1
 		}
+	case "pre-resume":
+		if err := nfy.PreResume(); err != nil {
+			return err
+		}
+
 	}
+
 	return nil
 }
 
@@ -499,6 +505,7 @@ type CriuOpts struct {
 	External                []string           // ignore external namespaces
 	MntnsCompatMode         bool
 	TcpClose                bool
+	Notify                  utils.Notify
 }
 
 type loadedState struct {
@@ -903,7 +910,7 @@ func localCheckpointTask(ctx gocontext.Context, client *containerd.Client, index
 
 	c := GetContainerFromRunc(container.ID, root)
 
-	err = c.RuncCheckpoint(criuOpts, c.Pid, root, c.Config)
+	err = c.RuncCheckpoint(criuOpts, c.Pid, root, c.Config, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1277,7 +1284,7 @@ func snapshotOpts(id string) error {
 	return nil
 }
 
-func (c *RuncContainer) RuncCheckpoint(criuOpts *CriuOpts, pid int, runcRoot string, pauseConfig *configs.Config) error {
+func (c *RuncContainer) RuncCheckpoint(criuOpts *CriuOpts, pid int, runcRoot string, pauseConfig *configs.Config, nfy *utils.Notify) error {
 	c.M.Lock()
 	defer c.M.Unlock()
 
@@ -1314,6 +1321,43 @@ func (c *RuncContainer) RuncCheckpoint(criuOpts *CriuOpts, pid int, runcRoot str
 	for _, m := range c.Config.Mounts {
 		if m.IsBind() {
 			externalMounts = append(externalMounts, fmt.Sprintf("mnt[%s]:%s", m.Destination, m.Destination))
+		}
+	}
+
+	var nvidiaExternalMounts = map[string]string{
+		"/proc/driver/nvidia/gpus/0000:01:00.0":                        "/proc/driver/nvidia/gpus/0000:01:00.0",
+		"/run/nvidia-persistenced/socket":                              "/run/nvidia-persistenced/socket",
+		"/usr/lib/firmware/nvidia/550.67/gsp_tu10x.bin":                "/usr/lib/firmware/nvidia/550.67/gsp_tu10x.bin",
+		"/usr/lib/firmware/nvidia/550.67/gsp_ga10x.bin":                "/usr/lib/firmware/nvidia/550.67/gsp_ga10x.bin",
+		"/usr/lib/x86_64-linux-gnu/libnvidia-nvvm.so.550.67":           "/usr/lib/x86_64-linux-gnu/libnvidia-nvvm.so.550.67",
+		"/usr/lib/x86_64-linux-gnu/libnvidia-allocator.so.550.67":      "/usr/lib/x86_64-linux-gnu/libnvidia-allocator.so.550.67",
+		"/usr/lib/x86_64-linux-gnu/libnvidia-ptxjitcompiler.so.550.67": "/usr/lib/x86_64-linux-gnu/libnvidia-ptxjitcompiler.so.550.67",
+		"/usr/lib/x86_64-linux-gnu/libnvidia-opencl.so.550.67":         "/usr/lib/x86_64-linux-gnu/libnvidia-opencl.so.550.67",
+		"/usr/lib/x86_64-linux-gnu/libcudadebugger.so.550.67":          "/usr/lib/x86_64-linux-gnu/libcudadebugger.so.550.67",
+		"/usr/lib/x86_64-linux-gnu/libcuda.so.550.67":                  "/usr/lib/x86_64-linux-gnu/libcuda.so.550.67",
+		"/usr/lib/x86_64-linux-gnu/libnvidia-cfg.so.550.67":            "/usr/lib/x86_64-linux-gnu/libnvidia-cfg.so.550.67",
+		"/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.550.67":             "/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.550.67",
+		"/usr/bin/nvidia-cuda-mps-server":                              "/usr/bin/nvidia-cuda-mps-server",
+		"/usr/bin/nvidia-cuda-mps-control":                             "/usr/bin/nvidia-cuda-mps-control",
+		"/usr/bin/nvidia-persistenced":                                 "/usr/bin/nvidia-persistenced",
+		"/usr/bin/nvidia-debugdump":                                    "/usr/bin/nvidia-debugdump",
+		"/usr/bin/nvidia-smi":                                          "/usr/bin/nvidia-smi",
+	}
+
+	var nvidiaExternalDevMounts = map[string]string{
+		"/dev/nvidia0":          "/dev/nvidia0",
+		"/dev/nvidia-uvm-tools": "/dev/nvidia-uvm-tools",
+		"/dev/nvidia-uvm":       "/dev/nvidia-uvm",
+		"/dev/nvidiactl":        "/dev/nvidiactl",
+		"/dev/shm":              "/dev/shm",
+	}
+
+	if os.Getenv("CEDANA_GPU_ENABLED") == "true" {
+		for key := range nvidiaExternalMounts {
+			externalMounts = append(externalMounts, fmt.Sprintf("mnt[%s]:%s", key, key))
+		}
+		for key := range nvidiaExternalDevMounts {
+			externalMounts = append(externalMounts, fmt.Sprintf("mnt[%s]:%s", key, key))
 		}
 	}
 
@@ -1493,14 +1537,14 @@ func (c *RuncContainer) RuncCheckpoint(criuOpts *CriuOpts, pid int, runcRoot str
 		}
 	}
 
-	err = c.criuSwrk(nil, req, criuOpts, nil)
+	err = c.criuSwrk(nil, req, criuOpts, nil, nfy)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (c *RuncContainer) criuSwrk(process *Process, req *criurpc.CriuReq, opts *CriuOpts, extraFiles []*os.File) error {
+func (c *RuncContainer) criuSwrk(process *Process, req *criurpc.CriuReq, opts *CriuOpts, extraFiles []*os.File, nfy *utils.Notify) error {
 	logger := utils.GetLogger()
 
 	fds, err := unix.Socketpair(unix.AF_LOCAL, unix.SOCK_SEQPACKET|unix.SOCK_CLOEXEC, 0)
@@ -1644,7 +1688,7 @@ func (c *RuncContainer) criuSwrk(process *Process, req *criurpc.CriuReq, opts *C
 			logrus.Debugf("Feature check says: %s", resp)
 			criuFeatures = resp.GetFeatures()
 		case criurpc.CriuReqType_NOTIFY:
-			if err := c.criuNotifications(resp, process, cmd, opts, extFds, oob[:oobn]); err != nil {
+			if err := c.criuNotifications(resp, process, cmd, opts, extFds, oob[:oobn], nfy); err != nil {
 				return err
 			}
 			req = &criurpc.CriuReq{
