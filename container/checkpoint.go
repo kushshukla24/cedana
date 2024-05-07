@@ -1487,6 +1487,9 @@ func (c *RuncContainer) RuncCheckpoint(criuOpts *CriuOpts, pid int, runcRoot str
 			return err
 		}
 
+		// TODO find a way to have pipes reopen properly if used on checkpoint...
+		fdsJSON, err = json.Marshal([]string{"/dev/null", "/dev/null", "/dev/null"})
+
 		err = os.WriteFile(filepath.Join(criuOpts.ImagesDirectory, descriptorsFilename), fdsJSON, 0o777)
 		if err != nil {
 			return err
