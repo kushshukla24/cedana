@@ -788,7 +788,7 @@ func (s *Server) serveGRPC(l net.Listener) error {
 }
 
 func (s *Server) start() {
-	lis, err := net.Listen("tcp", ":8085")
+	lis, err := net.Listen("tcp", ":8080")
 	if err != nil {
 		panic(err)
 	}
