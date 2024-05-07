@@ -247,7 +247,8 @@ message PausePidResp {
 
 message CtrByNameArgs {
     string ContainerName = 1;
-    string Root = 2;
+    string SandboxName = 2;
+    string Root = 3;
 }
 
 message CtrByNameResp {

@@ -48,7 +48,7 @@ func GetPidByContainerId(containerId, root string) (int, error) {
 	return runcSpec.InitProcessPid, nil
 }
 
-func GetContainerIdByName(containerName string, root string) (string, string, error) {
+func GetContainerIdByName(containerName, sandboxName, root string) (string, string, error) {
 	dirs, err := os.ReadDir(root)
 	if err != nil {
 		return "", "", err
@@ -86,6 +86,11 @@ func GetContainerIdByName(containerName string, root string) (string, string, er
 			if err := json.Unmarshal(configFile, &spec); err != nil {
 				return "", "", err
 			}
+
+			if sandboxName != "" && spec.Annotations["io.kubernetes.cri.container-name"] == containerName && spec.Annotations["io.kubernetes.cri.sandbox-name"] == sandboxName {
+				return dir.Name(), bundle, nil
+			}
+
 			if spec.Annotations["io.kubernetes.cri.container-name"] == containerName {
 				return dir.Name(), bundle, nil
 			}

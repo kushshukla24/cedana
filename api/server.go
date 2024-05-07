@@ -476,7 +476,7 @@ func (s *service) ListContainers(ctx context.Context, args *task.ListArgs) (*tas
 }
 
 func (s *service) GetRuncContainerByName(ctx context.Context, args *task.CtrByNameArgs) (*task.CtrByNameResp, error) {
-	runcId, bundle, err := runc.GetContainerIdByName(args.ContainerName, args.Root)
+	runcId, bundle, err := runc.GetContainerIdByName(args.ContainerName, args.SandboxName, args.Root)
 	if err != nil {
 		return nil, err
 	}
@@ -830,7 +830,7 @@ func StartGRPCServer(isK8s bool) (*grpc.Server, error) {
 		// Here join netns
 		//TODO find pause bundle path
 		if isK8s {
-			_, bundle, err := runc.GetContainerIdByName(cedanaContainerName, k8sDefaultRuncRoot)
+			_, bundle, err := runc.GetContainerIdByName(cedanaContainerName, "", k8sDefaultRuncRoot)
 			if err != nil {
 				fmt.Println(err.Error())
 				os.Exit(1)
