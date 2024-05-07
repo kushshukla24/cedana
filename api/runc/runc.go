@@ -87,12 +87,14 @@ func GetContainerIdByName(containerName, sandboxName, root string) (string, stri
 				return "", "", err
 			}
 
-			if sandboxName != "" && spec.Annotations["io.kubernetes.cri.container-name"] == containerName && spec.Annotations["io.kubernetes.cri.sandbox-name"] == sandboxName {
-				return dir.Name(), bundle, nil
-			}
-
-			if spec.Annotations["io.kubernetes.cri.container-name"] == containerName {
-				return dir.Name(), bundle, nil
+			if sandboxName != "" {
+				if spec.Annotations["io.kubernetes.cri.container-name"] == containerName && spec.Annotations["io.kubernetes.cri.sandbox-name"] == sandboxName {
+					return dir.Name(), bundle, nil
+				}
+			} else {
+				if spec.Annotations["io.kubernetes.cri.container-name"] == containerName {
+					return dir.Name(), bundle, nil
+				}
 			}
 		}
 
