@@ -218,7 +218,7 @@ var dumpRuncCmd = &cobra.Command{
 		}
 
 		dumpArgs := task.RuncDumpArgs{
-			Root:           root,
+			Root:           rootPath[root],
 			CheckpointPath: dir,
 			ContainerID:    id,
 			CriuOpts:       criuOpts,
