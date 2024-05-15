@@ -33,7 +33,7 @@ func (s *service) RuncDump(ctx context.Context, args *task.RuncDumpArgs) (*task.
 		WorkDirectory:   args.CriuOpts.WorkDirectory,
 		LeaveRunning:    true,
 		TcpEstablished:  args.CriuOpts.TcpEstablished,
-		MntnsCompatMode: true,
+		MntnsCompatMode: false,
 	}
 
 	err = s.runcDump(ctx, args.Root, args.ContainerID, criuOpts, state)
