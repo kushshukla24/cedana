@@ -50,6 +50,7 @@ import (
 	dockerTypes "github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 	dockercli "github.com/docker/docker/client"
+	"github.com/google/uuid"
 
 	errdefs "github.com/containerd/errdefs"
 	"github.com/opencontainers/go-digest"
@@ -825,7 +826,12 @@ func ContainerdCheckpoint(imagePath, id string) error {
 
 	// checkpoint task
 	// checkpoint, err := task.Checkpoint(ctx, containerd.WithCheckpointImagePath(imagePath)) //checkpoint, err := runcCheckpointContainerd(ctx, containerdClient, task, WithCheckpointImagePath(""))
-	checkpoint, err := container.Checkpoint(ctx, "test123", opts...)
+	uuid := uuid.New()
+
+	// Remove dashes from the UUID
+	idWithoutDashes := strings.ReplaceAll(uuid.String(), "-", "")
+
+	checkpoint, err := container.Checkpoint(ctx, idWithoutDashes, opts...)
 	if err != nil {
 		return err
 	}

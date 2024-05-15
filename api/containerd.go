@@ -14,20 +14,15 @@ import (
 
 func (s *service) ContainerdDump(ctx context.Context, args *task.ContainerdDumpArgs) (*task.ContainerdDumpResp, error) {
 	// XXX YA: Should be free from k8s
-	root := K8S_RUNC_ROOT
+	root := DEFAULT_ROOT
 
-	pid, err := runc.GetPidByContainerId(args.ContainerID, root)
+	_, err := runc.GetPidByContainerId(args.ContainerID, root)
 	if err != nil {
 		err = status.Error(codes.Internal, err.Error())
 		return nil, err
 	}
 
-	state, err := s.generateState(pid)
-	if err != nil {
-		err = status.Error(codes.Internal, err.Error())
-		return nil, err
-	}
-	state.JobState = task.JobState_JOB_RUNNING
+	state := &task.ProcessState{}
 
 	err = s.containerdDump(ctx, args.Ref, args.ContainerID, state)
 	if err != nil {
@@ -35,7 +30,7 @@ func (s *service) ContainerdDump(ctx context.Context, args *task.ContainerdDumpA
 		return nil, err
 	}
 
-  // TODO: Update state to add a job
+	// TODO: Update state to add a job
 
 	return &task.ContainerdDumpResp{
 		Message:        "Dumped containerd container",
