@@ -34,6 +34,7 @@ const (
 	DUMP_FOLDER_PERMS   = 0o777
 
 	K8S_RUNC_ROOT    = "/run/containerd/runc/k8s.io"
+	DEFAULT_ROOT     = "/run/runc"
 	DOCKER_RUNC_ROOT = "/run/docker/runtime-runc/moby"
 )
 

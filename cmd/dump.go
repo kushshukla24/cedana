@@ -190,8 +190,9 @@ var dumpRuncCmd = &cobra.Command{
 		defer cts.Close()
 
 		rootPath := map[string]string{
-			"k8s":    api.K8S_RUNC_ROOT,
-			"docker": api.DOCKER_RUNC_ROOT,
+			"k8s":     api.K8S_RUNC_ROOT,
+			"docker":  api.DOCKER_RUNC_ROOT,
+			"default": api.DEFAULT_ROOT,
 		}
 
 		root, _ := cmd.Flags().GetString(containerRootFlag)
@@ -217,11 +218,10 @@ var dumpRuncCmd = &cobra.Command{
 		}
 
 		dumpArgs := task.RuncDumpArgs{
-			Root: root,
-			// CheckpointPath: checkpointPath,
-			// FIXME YA: Where does this come from?
-			ContainerID: id,
-			CriuOpts:    criuOpts,
+			Root:           root,
+			CheckpointPath: dir,
+			ContainerID:    id,
+			CriuOpts:       criuOpts,
 			// TODO BS: hard coded for now
 			Type: task.CRType_LOCAL,
 		}
