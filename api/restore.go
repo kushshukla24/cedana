@@ -33,7 +33,7 @@ import (
 )
 
 const (
-	CRIU_RESTORE_LOG_FILE   = "cedana-dump.log"
+	CRIU_RESTORE_LOG_FILE   = "cedana-restore.log"
 	CRIU_RESTORE_LOG_LEVEL  = 4
 	RESTORE_TEMPDIR         = "/tmp/cedana_restore"
 	RESTORE_TEMPDIR_PERMS   = 0o755
