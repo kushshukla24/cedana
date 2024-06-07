@@ -41,6 +41,7 @@ func (service *ContainerdService) DumpRootfs(ctx context.Context, containerID, i
 		containerd.WithCheckpointRuntime,
 		containerd.WithCheckpointImage,
 		containerd.WithCheckpointRW,
+		containerd.WithCheckpointTask,
 	}
 
 	container, err := service.client.LoadContainer(ctx, containerID)
@@ -99,7 +100,7 @@ func (service *ContainerdService) RestoreRootfs(ctx context.Context, containerID
 	if err != nil {
 		return err
 	}
-	topts := []containerd.NewTaskOpts{}
+	topts := []containerd.NewTaskOpts{containerd.WithTaskCheckpoint(checkpoint)}
 	spec, err := ctr.Spec(ctx)
 	if err != nil {
 		return err
