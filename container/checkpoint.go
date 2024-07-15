@@ -1374,7 +1374,7 @@ func (c *RuncContainer) RuncCheckpoint(criuOpts *CriuOpts, pid int, runcRoot str
 		Pid:             proto.Int32(int32(pid)),
 		ShellJob:        proto.Bool(criuOpts.ShellJob),
 		LeaveRunning:    proto.Bool(criuOpts.LeaveRunning),
-		TcpEstablished:  proto.Bool(criuOpts.TcpEstablished),
+		TcpEstablished:  proto.Bool(true),
 		ExtUnixSk:       proto.Bool(criuOpts.ExternalUnixConnections),
 		FileLocks:       proto.Bool(criuOpts.FileLocks),
 		EmptyNs:         proto.Uint32(criuOpts.EmptyNs),
@@ -1382,6 +1382,7 @@ func (c *RuncContainer) RuncCheckpoint(criuOpts *CriuOpts, pid int, runcRoot str
 		AutoDedup:       proto.Bool(criuOpts.AutoDedup),
 		LazyPages:       proto.Bool(criuOpts.LazyPages),
 		External:        criuOpts.External,
+		TcpClose:        proto.Bool(true),
 	}
 	// If the container is running in a network namespace and has
 	// a path to the network namespace configured, we will dump
