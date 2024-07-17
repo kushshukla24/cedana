@@ -3,24 +3,33 @@ package crio
 import (
 	"context"
 	"encoding/json"
-	"errors"
+
+	"github.com/pkg/errors"
+
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"github.com/cedana/cedana/api/runc"
 	"github.com/cedana/cedana/utils"
 	metadata "github.com/checkpoint-restore/checkpointctl/lib"
+	"github.com/containers/buildah"
+	"github.com/containers/buildah/util"
+	"github.com/containers/common/pkg/auth"
 	"github.com/containers/common/pkg/crutils"
+	is "github.com/containers/image/v5/storage"
+	"github.com/containers/image/v5/transports"
+	"github.com/containers/image/v5/transports/alltransports"
+	"github.com/containers/image/v5/types"
 	"github.com/containers/storage"
 	archive "github.com/containers/storage/pkg/archive"
 	"github.com/containers/storage/pkg/unshare"
 	libconfig "github.com/cri-o/cri-o/pkg/config"
 	"github.com/docker/docker/pkg/homedir"
 	rspec "github.com/opencontainers/runtime-spec/specs-go"
+	"github.com/sirupsen/logrus"
 )
 
 var (
@@ -250,53 +259,40 @@ func RootfsCheckpoint(ctx context.Context, ctrDir, dest, ctrID string, specgen *
 	return diffPath, nil
 }
 
-func RootfsMerge(ctx context.Context, originalImageRef, newImageRef, rootfsDiffPath, containerStorage string) error {
-	//buildah from original base ubuntu image
-	if _, err := exec.LookPath("buildah"); err != nil {
-		return fmt.Errorf("buildah is not installed")
-	}
-
-	cmd := exec.Command("buildah", "from", originalImageRef)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("issue making working container: %s, %s", err.Error(), string(out))
-	}
-
-	containerID := string(out)
-
-	containerID = strings.ReplaceAll(containerID, "\n", "")
-
-	//mount container
+func RootfsMerge(ctx context.Context, originalImageRef, newImageRef, rootfsDiffPath, containerStorage string) (*buildah.Builder, error) {
 	logger, err := utils.GetLoggerFromContext(ctx)
 	if err != nil {
 		fmt.Printf(err.Error())
 	}
 
-	logger.Debug().Msgf("buildah mount of container %s", containerID)
+	buildStoreOptions, err := storage.DefaultStoreOptions()
+	buildStore, err := storage.GetStore(buildStoreOptions)
 
-	cmd = exec.Command("buildah", "mount", containerID)
-	out, err = cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("issue mounting working container: %s, %s", err.Error(), string(out))
+	builderOpts := buildah.BuilderOptions{
+		FromImage: originalImageRef, // base image
 	}
 
-	containerRootDirectory := string(out)
+	builder, err := buildah.NewBuilder(context.TODO(), buildStore, builderOpts)
+	defer builder.Delete()
 
-	containerRootDirectory = strings.ReplaceAll(containerRootDirectory, "\n", "")
+	logger.Debug().Msgf("buildah mount of container %s", builder.ContainerID)
+
+	//mount container
+	containerRootDirectory, err := builder.Mount(builder.MountLabel)
 
 	rootfsDiffFile, err := os.Open(rootfsDiffPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return nil
+			return nil, nil
 		}
-		return fmt.Errorf("failed to open root file-system diff file: %w", err)
+		return nil, fmt.Errorf("failed to open root file-system diff file: %w", err)
 	}
 	defer rootfsDiffFile.Close()
 
 	logger.Debug().Msgf("applying rootfs diff to %s", containerRootDirectory)
 
 	if err := archive.Untar(rootfsDiffFile, containerRootDirectory, nil); err != nil {
-		return fmt.Errorf("failed to apply root file-system diff file %s: %w", rootfsDiffPath, err)
+		return nil, fmt.Errorf("failed to apply root file-system diff file %s: %w", rootfsDiffPath, err)
 	}
 
 	rwDiffJson := filepath.Join(containerStorage, rwChangesFile)
@@ -304,44 +300,96 @@ func RootfsMerge(ctx context.Context, originalImageRef, newImageRef, rootfsDiffP
 
 	rwDiffFile, err := os.Open(rwDiffJson)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer rwDiffFile.Close()
 
 	rwDiffFileDest, err := os.Create(rwDiffJsonDest)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer rwDiffFileDest.Close()
 
 	_, err = io.Copy(rwDiffFileDest, rwDiffFile)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	err = rwDiffFileDest.Sync()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	logger.Debug().Msgf("committing to %s", newImageRef)
-	cmd = exec.Command("buildah", "commit", containerID, newImageRef)
-	out, err = cmd.CombinedOutput()
+	logger.Debug().Msgf("committing to image %s", newImageRef)
+	imageRef, err := is.Transport.ParseStoreReference(buildStore, newImageRef)
 	if err != nil {
-		return fmt.Errorf("issue committing image: %s, %s", err.Error(), string(out))
+		return nil, err
 	}
 
-	return nil
+	if _, _, _, err = builder.Commit(context.TODO(), imageRef, buildah.CommitOptions{}); err != nil {
+		return nil, err
+	}
+
+	return builder, nil
 	//untar into storage root
 }
 
-func ImagePush(ctx context.Context, newImageRef string) error {
-	//buildah push
-	cmd := exec.Command("buildah", "push", newImageRef)
-	out, err := cmd.CombinedOutput()
+func ImagePush(ctx context.Context, newImageRef string, builder *buildah.Builder) error {
+	logger, err := utils.GetLoggerFromContext(ctx)
 	if err != nil {
-		return fmt.Errorf("issue pushing image: %s, %s", err.Error(), string(out))
+		fmt.Printf(err.Error())
 	}
+
+	dest, err := alltransports.ParseImageName(newImageRef)
+	// add the docker:// transport to see if they neglected it.
+	if err != nil {
+		destTransport := strings.Split(newImageRef, ":")[0]
+		if t := transports.Get(destTransport); t != nil {
+			return err
+		}
+
+		if strings.Contains(newImageRef, "://") {
+			return err
+		}
+
+		newImageRef = "docker://" + newImageRef
+		dest2, err2 := alltransports.ParseImageName(newImageRef)
+		if err2 != nil {
+			return err
+		}
+		dest = dest2
+		// logrus.Debugf("Assuming docker:// as the transport method for DESTINATION: %s", newImageRef)
+	}
+
+	//buildah push
+	systemContext := &types.SystemContext{
+		AuthFilePath: auth.GetDefaultAuthFile(),
+	}
+	opts := &buildah.PushOptions{
+		Compression:      archive.Gzip,
+		RemoveSignatures: false,
+		SystemContext:    systemContext,
+	}
+
+	ref, digest, err := buildah.Push(ctx, newImageRef, dest, *opts)
+
+	if err != nil {
+		if errors.Cause(err) != storage.ErrImageUnknown {
+			// Image might be a manifest so attempt a manifest push
+			return fmt.Errorf("Image might be a manifest")
+			// if manifestsErr := manifestPush(systemContext, store, src, destSpec, iopts); manifestsErr == nil {
+			// 	return nil
+			// }
+		}
+		return util.GetFailureCause(err, errors.Wrapf(err, "error pushing image %q to %q", newImageRef, newImageRef))
+	}
+	if ref != nil {
+		logger.Debug().Msgf("pushed image %q with digest %s", ref, digest.String())
+	} else {
+		logger.Debug().Msgf("pushed image with digest %s", digest.String())
+	}
+
+	logrus.Debugf("Successfully pushed %s with digest %s", transports.ImageName(dest), digest.String())
 
 	return nil
 }
