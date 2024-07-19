@@ -51,8 +51,10 @@ func (s *service) CRIOImagePush(ctx context.Context, args *task.CRIOImagePushArg
 		return resp, err
 	}
 
+	defer builder.Delete()
+
 	s.logger.Debug().Msgf("CRIO image push started with new image: %s", args.NewImageRef)
-	if err := crio.ImagePush(ctx, args.NewImageRef, builder); err != nil {
+	if err := crio.ImagePush(ctx, args.NewImageRef); err != nil {
 		return resp, err
 	}
 
