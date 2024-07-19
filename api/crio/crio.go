@@ -278,7 +278,9 @@ func RootfsMerge(ctx context.Context, originalImageRef, newImageRef, rootfsDiffP
 	}
 
 	builder, err := buildah.NewBuilder(context.TODO(), buildStore, builderOpts)
-	defer builder.Delete()
+	if err != nil {
+		return nil, err
+	}
 
 	logger.Debug().Msgf("buildah mount of container %s", builder.ContainerID)
 
