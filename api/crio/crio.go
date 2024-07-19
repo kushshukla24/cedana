@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"os/exec"
 
 	"github.com/pkg/errors"
 
@@ -449,13 +448,6 @@ func ImagePush(ctx context.Context, newImageRef string) error {
 		logger.Debug().Msg("did not detect ecr registry")
 	}
 
-	//buildah push
-	cmd := exec.Command("buildah", "push", newImageRef)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		fmt.Printf(err.Error())
-	}
-
 	dest, err := alltransports.ParseImageName(newImageRef)
 	// add the docker:// transport to see if they neglected it.
 	if err != nil {
@@ -474,13 +466,9 @@ func ImagePush(ctx context.Context, newImageRef string) error {
 			return err
 		}
 		dest = dest2
-		// logrus.Debugf("Assuming docker:// as the transport method for DESTINATION: %s", newImageRef)
 	}
 
 	//buildah push
-	systemContext := &types.SystemContext{
-		AuthFilePath: auth.GetDefaultAuthFile(),
-	}
 	opts := &buildah.PushOptions{
 		Compression:      archive.Gzip,
 		RemoveSignatures: false,
