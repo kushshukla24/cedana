@@ -5,19 +5,22 @@ go 1.22.0
 toolchain go1.22.2
 
 require (
+	github.com/aws/aws-sdk-go v1.54.19
 	github.com/cedana/runc v1.10.2
+	github.com/checkpoint-restore/checkpointctl v1.2.1
 	github.com/checkpoint-restore/go-criu/v6 v6.3.0
 	github.com/checkpoint-restore/go-criu/v7 v7.1.0
 	github.com/containerd/console v1.0.3
 	github.com/containerd/containerd v1.7.18
 	github.com/containerd/errdefs v0.1.0
 	github.com/containerd/typeurl/v2 v2.1.1
-	github.com/containers/common v0.59.1
-	github.com/containers/image/v5 v5.31.0
+	github.com/containers/buildah v1.36.0
+	github.com/containers/common v0.59.2
+	github.com/containers/image/v5 v5.31.1
 	github.com/containers/ocicrypt v1.1.10
 	github.com/containers/storage v1.54.0
 	github.com/coreos/go-systemd/v22 v22.5.1-0.20231103132048-7d375ecc2b09
-	github.com/cri-o/cri-o v1.30.3
+	github.com/cri-o/cri-o v0.0.0-00010101000000-000000000000
 	github.com/cyphar/filepath-securejoin v0.2.5
 	github.com/docker/docker v26.1.3+incompatible
 	github.com/godbus/dbus/v5 v5.1.1-0.20230522191255-76236955d466
@@ -32,6 +35,7 @@ require (
 	github.com/opencontainers/runc v1.1.13
 	github.com/opencontainers/runtime-spec v1.2.0
 	github.com/opencontainers/selinux v1.11.0
+	github.com/pkg/errors v0.9.1
 	github.com/rs/xid v1.5.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/afero v1.11.0
@@ -64,12 +68,10 @@ require (
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d // indirect
 	github.com/aead/serpent v0.0.0-20160714141033-fba169763ea6 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
-	github.com/aws/aws-sdk-go v1.54.19 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
-	github.com/checkpoint-restore/checkpointctl v1.2.1 // indirect
 	github.com/chzyer/readline v1.5.1 // indirect
 	github.com/cilium/ebpf v0.12.0 // indirect
 	github.com/containerd/cgroups/v3 v3.0.3 // indirect
@@ -82,7 +84,6 @@ require (
 	github.com/containerd/ttrpc v1.2.4 // indirect
 	github.com/containernetworking/cni v1.1.2 // indirect
 	github.com/containernetworking/plugins v1.5.1 // indirect
-	github.com/containers/buildah v1.36.0 // indirect
 	github.com/containers/conmon v2.0.20+incompatible // indirect
 	github.com/containers/libtrust v0.0.0-20230121012942-c1716e8a8d01 // indirect
 	github.com/containers/luksy v0.0.0-20240506205542-84b50f50f3ee // indirect
@@ -165,7 +166,6 @@ require (
 	github.com/openshift/imagebuilder v1.2.9 // indirect
 	github.com/ostreedev/ostree-go v0.0.0-20210805093236-719684c64e4f // indirect
 	github.com/pelletier/go-toml/v2 v2.1.0 // indirect
-	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20221212215047-62379fc7944b // indirect
 	github.com/proglottis/gpgme v0.1.3 // indirect
