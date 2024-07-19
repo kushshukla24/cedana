@@ -277,6 +277,9 @@ func RootfsMerge(ctx context.Context, originalImageRef, newImageRef, rootfsDiffP
 
 	buildStoreOptions, err := storage.DefaultStoreOptions()
 	buildStore, err := storage.GetStore(buildStoreOptions)
+	if buildStore != nil {
+		is.Transport.SetStore(buildStore)
+	}
 
 	builderOpts := buildah.BuilderOptions{
 		FromImage:     originalImageRef, // base image
