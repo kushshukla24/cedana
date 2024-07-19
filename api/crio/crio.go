@@ -42,6 +42,11 @@ var (
 	needToShutdownStore = false
 )
 
+const (
+	DefaultCNIConfigDir  = "/etc/cni/net.d"
+	DefaultCNIPluginPath = "/usr/libexec/cni:/opt/cni/bin"
+)
+
 // setXDGRuntimeDir sets XDG_RUNTIME_DIR when if it is unset under rootless
 func setXDGRuntimeDir() error {
 	if unshare.IsRootless() && os.Getenv("XDG_RUNTIME_DIR") == "" {
@@ -274,7 +279,9 @@ func RootfsMerge(ctx context.Context, originalImageRef, newImageRef, rootfsDiffP
 	buildStore, err := storage.GetStore(buildStoreOptions)
 
 	builderOpts := buildah.BuilderOptions{
-		FromImage: originalImageRef, // base image
+		FromImage:     originalImageRef, // base image
+		CNIConfigDir:  DefaultCNIConfigDir,
+		CNIPluginPath: DefaultCNIPluginPath,
 	}
 
 	builder, err := buildah.NewBuilder(context.TODO(), buildStore, builderOpts)
