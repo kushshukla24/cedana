@@ -312,6 +312,17 @@ func RootfsMerge(ctx context.Context, originalImageRef, newImageRef, rootfsDiffP
 		return nil, fmt.Errorf("failed to apply root file-system diff file %s: %w", rootfsDiffPath, err)
 	}
 
+	deletedFiles, _, err := metadata.ReadContainerCheckpointDeletedFiles(containerStorage)
+	if err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
+
+	for _, deleteFile := range deletedFiles {
+		if err := os.RemoveAll(filepath.Join(containerRootDirectory, deleteFile)); err != nil {
+			return nil, fmt.Errorf("failed to delete files from container %s during restore: %w", builder.ContainerID, err)
+		}
+	}
+
 	rwDiffJson := filepath.Join(containerStorage, rwChangesFile)
 	rwDiffJsonDest := filepath.Join(containerRootDirectory, rwChangesFile)
 
