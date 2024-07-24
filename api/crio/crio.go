@@ -281,7 +281,7 @@ func removeAllContainers(logger *zerolog.Logger) {
 		}
 	}
 
-	logger.Debug().Msgf("Finished removing all Buildah containers.")
+	logger.Error().Msgf("Finished removing all Buildah containers.")
 }
 
 func RootfsMerge(ctx context.Context, originalImageRef, newImageRef, rootfsDiffPath, containerStorage string) error {
@@ -345,6 +345,7 @@ func RootfsMerge(ctx context.Context, originalImageRef, newImageRef, rootfsDiffP
 	}
 
 	rwDiffJson := filepath.Join(containerStorage, rwChangesFile)
+	logger.Debug().Msgf("rw diff json location %s", rwDiffJson)
 	rwDiffJsonDest := filepath.Join(containerRootDirectory, rwChangesFile)
 
 	rwDiffFile, err := os.Open(rwDiffJson)

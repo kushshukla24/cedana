@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Install Cedana
-cp /usr/local/bin/cedana /host/usr/local/bin/cedana
+cp ./cedana /host/usr/local/bin/cedana
 cp /usr/local/bin/build-start-daemon.sh /host/build-start-daemon.sh
 
 chroot /host <<"EOT"
