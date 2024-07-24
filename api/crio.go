@@ -45,7 +45,7 @@ func (s *service) CRIOImagePush(ctx context.Context, args *task.CRIOImagePushArg
 
 	resp = &task.CRIOImagePushResp{}
 
-	s.logger.Debug().Msgf("CRIO image merge started with original image: %s and new image: %s", args.OriginalImageRef, args.NewImageRef)
+	s.logger.Debug().Msgf("CRIO image merge started with original image: %s and new image: %s using storage %s", args.OriginalImageRef, args.NewImageRef, args.ContainerStorage)
 	if err := crio.RootfsMerge(ctx, args.OriginalImageRef, args.NewImageRef, args.RootfsDiffPath, args.ContainerStorage); err != nil {
 		return resp, err
 	}
