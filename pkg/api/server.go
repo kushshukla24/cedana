@@ -36,13 +36,14 @@ import (
 )
 
 const (
-	ADDRESS                 = "0.0.0.0:8080"
 	PROTOCOL                = "tcp"
 	CEDANA_CONTAINER_NAME   = "binary-container"
 	SERVER_LOG_MODE         = os.O_APPEND | os.O_CREATE | os.O_WRONLY
 	SERVER_LOG_PERMS        = 0o644
 	GPU_CONTROLLER_LOG_PATH = "/tmp/cedana-gpucontroller.log"
 )
+
+var Address = "0.0.0.0:8080"
 
 type service struct {
 	CRIU        *Criu
@@ -67,6 +68,7 @@ type Server struct {
 type ServeOpts struct {
 	GPUEnabled  bool
 	CUDAVersion string
+	GrpcPort    uint64
 }
 
 type pullGPUBinaryRequest struct {
@@ -103,7 +105,8 @@ func NewServer(ctx context.Context, opts *ServeOpts) (*Server, error) {
 	task.RegisterTaskServiceServer(server.grpcServer, service)
 	reflection.Register(server.grpcServer)
 
-	listener, err := net.Listen(PROTOCOL, ADDRESS)
+	Address = fmt.Sprintf("localhost:%d", opts.GrpcPort)
+	listener, err := net.Listen(PROTOCOL, Address)
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +193,7 @@ func StartServer(cmdCtx context.Context, opts *ServeOpts) error {
 			}
 		}
 
-		logger.Info().Str("address", ADDRESS).Msgf("server listening")
+		logger.Info().Str("address", Address).Msgf("server listening")
 
 		err := server.start()
 		if err != nil {

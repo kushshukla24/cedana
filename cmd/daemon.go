@@ -3,13 +3,21 @@ package cmd
 // This file contains all the daemon-related commands when starting `cedana daemon ...`
 
 import (
+	"context"
+	"database/sql"
 	"fmt"
 	"os"
+	"os/signal"
+	"time"
 
 	"github.com/cedana/cedana/pkg/api"
 	"github.com/cedana/cedana/pkg/api/services"
 	"github.com/cedana/cedana/pkg/api/services/task"
+	"github.com/cedana/cedana/pkg/jobservice"
 	"github.com/cedana/cedana/pkg/utils"
+	"github.com/maragudk/goqite"
+	"github.com/maragudk/goqite/jobs"
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -43,7 +51,6 @@ var startDaemonCmd = &cobra.Command{
 			logger.Warn().Err(err).Msg("Failed to initialize otel")
 			return err
 		}
-
 		logger.Info().Msg("otel initialized")
 
 		if viper.GetBool("profiling_enabled") {
@@ -60,11 +67,59 @@ var startDaemonCmd = &cobra.Command{
 
 		logger.Info().Msgf("starting daemon version %s", rootCmd.Version)
 
-		err = api.StartServer(ctx, &api.ServeOpts{GPUEnabled: gpuEnabled, CUDAVersion: cudaVersions[cudaVersion]})
+		grpcPort, _ := cmd.Flags().GetUint64(gprcPortFlag)
+
+		err = api.StartServer(ctx, &api.ServeOpts{
+			GPUEnabled:  gpuEnabled,
+			CUDAVersion: cudaVersions[cudaVersion],
+			GrpcPort:    grpcPort,
+		})
 		if err != nil {
-			logger.Error().Err(err).Msgf("stopping daemon")
+			logger.Error().Err(err).Msgf("failed to start grpc service, stopping daemon")
 			return err
 		}
+
+		// sqlite queue
+		db, err := sql.Open("sqlite3", ":memory:?_journal=WAL&_timeout=5000&_fk=true")
+		if err != nil {
+			logger.Error().Err(err).Msgf("failed to open sqlite db")
+		}
+		db.SetMaxOpenConns(1)
+		db.SetMaxIdleConns(1)
+
+		if err := goqite.Setup(context.Background(), db); err != nil {
+			logger.Error().Err(err).Msgf("failed to setup context")
+		}
+		q := goqite.New(goqite.NewOpts{DB: db, Name: "jobs"})
+		r := jobs.NewRunner(jobs.NewRunnerOpts{
+			Limit:        1,
+			PollInterval: 10 * time.Millisecond,
+			Queue:        q,
+		})
+
+		cts, err := services.NewClient()
+		if err != nil {
+			logger.Error().Err(err).Msgf("failed to create grpc services client")
+			return err
+		}
+
+		jobservice.RegisterJobs(r, cts)
+
+		// start job service
+		jobServicePort, _ := cmd.Flags().GetUint64(jobServicePortFlag)
+		echoServer, err := jobservice.StartService(q, jobServicePort)
+		if err != nil {
+			logger.Error().Err(err).Msgf("failed to start job service, stopping daemon")
+			return err
+		}
+		echoServer.Start(fmt.Sprintf("localhost:%d", jobServicePort))
+
+		// handle signal cancellation
+		ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
+		defer cancel()
+
+		// start the runner
+		r.Start(ctx)
 
 		return nil
 	},
@@ -77,12 +132,13 @@ var checkDaemonCmd = &cobra.Command{
 		ctx := cmd.Context()
 		logger := ctx.Value("logger").(*zerolog.Logger)
 
+		logger.Debug().Msg("Running daemon status check")
+
 		cts, err := services.NewClient()
 		if err != nil {
 			logger.Error().Err(err).Msg("error creating client")
 			return err
 		}
-
 		defer cts.Close()
 
 		// regular health check
@@ -91,7 +147,6 @@ var checkDaemonCmd = &cobra.Command{
 			logger.Error().Err(err).Msg("health check failed")
 			return err
 		}
-
 		logger.Info().Msgf("health check returned: %v", healthy)
 
 		// Detailed health check. Need to grab uid and gid to start
@@ -140,4 +195,6 @@ func init() {
 	daemonCmd.AddCommand(checkDaemonCmd)
 	startDaemonCmd.Flags().BoolP(gpuEnabledFlag, "g", false, "start daemon with GPU support")
 	startDaemonCmd.Flags().String(cudaVersionFlag, "11.8", "cuda version to use")
+	startDaemonCmd.Flags().Uint64P(gprcPortFlag, "p", 8080, "port for grpc server")
+	startDaemonCmd.Flags().Uint64P(jobServicePortFlag, "j", 1444, "port for job service")
 }

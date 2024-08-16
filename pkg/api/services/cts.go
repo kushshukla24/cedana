@@ -28,7 +28,7 @@ type ServiceClient struct {
 func NewClient() (*ServiceClient, error) {
 	var opts []grpc.DialOption
 	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	taskConn, err := grpc.Dial(api.ADDRESS, opts...)
+	taskConn, err := grpc.Dial(api.Address, opts...)
 	if err != nil {
 		return nil, err
 	}

@@ -237,7 +237,7 @@ func isProcessRunning() (bool, error) {
 	// TODO: Dial API is deprecated in favour of NewClient since early 2024, will be removed soon
 	// Note: NewClient defaults to idle state for connection rather than automatically trying to
 	// connect in the background
-	conn, err := grpc.Dial(api.ADDRESS, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.Dial(api.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return false, err
 	}

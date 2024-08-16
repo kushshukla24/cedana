@@ -27,6 +27,8 @@ const (
 	restartFlag          = "restart"
 	cudaVersionFlag      = "cuda"
 	pidFlag              = "pid"
+	gprcPortFlag         = "grpc-port"
+	jobServicePortFlag   = "job-port"
 	externalFlag         = "external"
 	destFlag             = "dest"
 	containerStorageFlag = "container-storage"
