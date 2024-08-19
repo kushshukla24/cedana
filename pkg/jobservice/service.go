@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/maragudk/goqite"
 	"github.com/maragudk/goqite/jobs"
@@ -36,10 +37,12 @@ type CheckpointJob struct {
 }
 
 type RestoreJob struct {
-	PodName       string  `json:"sandbox_name"`
-	ContainerName string  `json:"container_name"`
-	ImageRefName  string  `json:"image_ref"`
-	Runtime       Runtime `json:"runtime"`
+	PodName        string  `json:"sandbox_name" validate:"required"`
+	ContainerName  string  `json:"container_name" validate:"required"`
+	ImageRefName   string  `json:"image_ref" validate:"required"`
+	Namespace      string  `json:"namespace" validate:"required"`
+	Runtime        Runtime `json:"runtime" validate:"required"`
+	CheckpointPath string  `json:"checkpoint_path,omitempty"`
 }
 
 func RegisterJobs(r *jobs.Runner, c *cts.ServiceClient) {
@@ -124,7 +127,7 @@ func RegisterJobs(r *jobs.Runner, c *cts.ServiceClient) {
 			}
 
 			completeReq := CheckpointComplete{DumpResp: string(respBody)}
-			completeReqBody, _ := json.Marshal(completeReq)
+			_, _ = json.Marshal(completeReq)
 		case "runc":
 			runcRoot := "/default/runc"
 			ctrByNameArgs := &task.RuncQueryArgs{
@@ -181,6 +184,52 @@ func RegisterJobs(r *jobs.Runner, c *cts.ServiceClient) {
 		switch rj.Runtime {
 		case "crio":
 		case "runc":
+			runcRoot := "/default/runc"
+			ctrByNameArgs := &task.RuncQueryArgs{
+				Root:           runcRoot,
+				Namespace:      rj.Namespace,
+				ContainerNames: []string{rj.ContainerName},
+				SandboxNames:   []string{rj.PodName},
+			}
+			ctrResp, err := c.RuncQuery(ctx, ctrByNameArgs)
+			if err != nil {
+				return err
+			}
+			runcId := ctrResp.Containers[0].ID
+			pausePidArgs := &task.RuncGetPausePidArgs{
+				BundlePath: ctrResp.Containers[0].BundlePath,
+			}
+			pidResp, _ := c.RuncGetPausePid(ctx, pausePidArgs)
+			netPid := pidResp.PausePid
+			if runcId == "" {
+				return fmt.Errorf("Failed to locate runc container.")
+			}
+			runcOpts := &task.RuncOpts{
+				Root:          runcRoot,
+				Bundle:        ctrResp.Containers[0].BundlePath,
+				ConsoleSocket: "",
+				Detach:        true,
+				NetPid:        int32(netPid),
+			}
+
+			var restoreType task.CRType
+
+			if rj.CheckpointPath != "" {
+				restoreType = task.CRType_LOCAL
+			} else {
+				restoreType = task.CRType_REMOTE
+			}
+
+			id := uuid.New()
+			runcRestoreArgs := &task.RuncRestoreArgs{
+				ImagePath:   rj.CheckpointPath,
+				ContainerID: id.String(),
+				IsK3S:       true,
+				Opts:        runcOpts,
+				Type:        restoreType,
+			}
+			_, err = c.RuncRestore(ctx, runcRestoreArgs)
+
 		case "containerd":
 		}
 		return nil

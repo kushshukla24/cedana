@@ -270,6 +270,17 @@ func (c *ServiceClient) RuncQuery(ctx context.Context, args *task.RuncQueryArgs)
 	return resp, nil
 }
 
+func (c *ServiceClient) RuncGetPausePid(ctx context.Context, args *task.RuncGetPausePidArgs) (*task.RuncGetPausePidResp, error) {
+	ctx, cancel := context.WithTimeout(ctx, DEFAULT_RUNC_DEADLINE)
+	defer cancel()
+	opts := getDefaultCallOptions()
+	resp, err := c.taskService.RuncGetPausePid(ctx, args, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
 ////////////////////////////
 /// Config Service Calls ///
 ////////////////////////////
