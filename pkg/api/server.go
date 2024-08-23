@@ -33,6 +33,8 @@ import (
 	"google.golang.org/grpc/health"
 	healthcheckgrpc "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
+
+	"github.com/cedana/cedana/pkg/jobservice"
 )
 
 const (
@@ -55,6 +57,8 @@ type service struct {
 	wg          sync.WaitGroup  // for waiting for all background tasks to finish
 	gpuEnabled  bool
 	cudaVersion string
+
+	jobService *jobservice.JobQueueService
 
 	task.UnimplementedTaskServiceServer
 }
@@ -89,6 +93,11 @@ func NewServer(ctx context.Context, opts *ServeOpts) (*Server, error) {
 	healthcheck := health.NewServer()
 	healthcheckgrpc.RegisterHealthServer(server.grpcServer, healthcheck)
 
+	js, err := jobservice.New()
+	if err != nil {
+		return nil, err
+	}
+
 	service := &service{
 		// criu instantiated as empty, because all criu functions run criu swrk (starting the criu rpc server)
 		// instead of leaving one running forever.
@@ -100,6 +109,8 @@ func NewServer(ctx context.Context, opts *ServeOpts) (*Server, error) {
 		serverCtx:   ctx,
 		gpuEnabled:  opts.GPUEnabled,
 		cudaVersion: opts.CUDAVersion,
+
+		jobService: js,
 	}
 
 	task.RegisterTaskServiceServer(server.grpcServer, service)

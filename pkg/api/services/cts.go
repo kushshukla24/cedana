@@ -12,6 +12,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health/grpc_health_v1"
+
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 const (
@@ -306,4 +308,41 @@ func getDefaultCallOptions() []grpc.CallOption {
 		opts = append(opts, grpc.WaitForReady(true))
 	}
 	return opts
+}
+
+////////////////////
+//    JobQueue    //
+////////////////////
+
+func (c *ServiceClient) QueueCheckpoint(ctx context.Context, args *task.QueueJobCheckpointRequest) (*wrapperspb.BoolValue, error) {
+	ctx, cancel := context.WithTimeout(ctx, DEFAULT_PROCESS_DEADLINE)
+	defer cancel()
+	opts := getDefaultCallOptions()
+	resp, err := c.taskService.QueueCheckpoint(ctx, args, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *ServiceClient) QueueRestore(ctx context.Context, args *task.QueueJobRestoreRequest) (*wrapperspb.BoolValue, error) {
+	ctx, cancel := context.WithTimeout(ctx, DEFAULT_PROCESS_DEADLINE)
+	defer cancel()
+	opts := getDefaultCallOptions()
+	resp, err := c.taskService.QueueRestore(ctx, args, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *ServiceClient) QueueJobStatus(ctx context.Context, args *task.QueueJobID) (*task.QueueJobStatus, error) {
+	ctx, cancel := context.WithTimeout(ctx, DEFAULT_PROCESS_DEADLINE)
+	defer cancel()
+	opts := getDefaultCallOptions()
+	resp, err := c.taskService.JobStatus(ctx, args, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
