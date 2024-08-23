@@ -57,6 +57,16 @@ func (service *ContainerdService) CgroupFreeze(ctx context.Context, id string) (
 	return nil, nil
 }
 
+func (service *ContainerdService) GetContainerdID(ctx context.Context, containerName, ns string) (string, error) {
+	ctx = namespaces.WithNamespace(ctx, ns)
+	ctrId, err := container.GetContainerID(ctx, service.client, containerName, ns)
+	if err != nil {
+		return "", err
+	}
+
+	return ctrId, nil
+}
+
 func (service *ContainerdService) DumpRootfs(ctx context.Context, containerID, imageRef, ns string) (string, error) {
 	ctx = namespaces.WithNamespace(ctx, ns)
 

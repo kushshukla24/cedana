@@ -13,18 +13,16 @@ import (
 	"github.com/cedana/cedana/pkg/api/services/task"
 	"github.com/cedana/cedana/pkg/container"
 	"github.com/containerd/containerd/namespaces"
+	"github.com/rs/zerolog"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-func (s *service) ContainerdDump(ctx context.Context, args *task.ContainerdDumpArgs) (*task.ContainerdDumpResp, error) {
-	rootfsOpts := args.ContainerdRootfsDumpArgs
-	dumpOpts := args.RuncDumpArgs
-
+func ContainerdDump(ctx context.Context, rootfsOpts *task.ContainerdRootfsDumpArgs, dumpOpts *task.RuncDumpArgs, logger *zerolog.Logger) (*task.ContainerdDumpResp, error) {
 	ctx = namespaces.WithNamespace(ctx, rootfsOpts.Namespace)
 
-	containerdService, err := containerd.New(ctx, rootfsOpts.Address, s.logger)
+	containerdService, err := containerd.New(ctx, rootfsOpts.Address, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -120,6 +118,10 @@ func (s *service) ContainerdDump(ctx context.Context, args *task.ContainerdDumpA
 	}, nil
 }
 
+func (s *service) ContainerdDump(ctx context.Context, args *task.ContainerdDumpArgs) (*task.ContainerdDumpResp, error) {
+	return ContainerdDump(ctx, args.ContainerdRootfsDumpArgs, args.RuncDumpArgs, s.logger)
+}
+
 func (s *service) ContainerdRestore(ctx context.Context, args *task.ContainerdRestoreArgs) (*task.ContainerdRestoreResp, error) {
 	err := s.containerdRestore(ctx, args.ImgPath, args.ContainerID)
 	if err != nil {
@@ -162,15 +164,14 @@ func (s *service) ContainerdQuery(ctx context.Context, args *task.ContainerdQuer
 }
 
 func (s *service) ContainerdRootfsDump(ctx context.Context, args *task.ContainerdRootfsDumpArgs) (*task.ContainerdRootfsDumpResp, error) {
-
 	containerdService, err := containerd.New(ctx, args.Address, s.logger)
 	if err != nil {
-		return &task.ContainerdRootfsDumpResp{}, err
+		return nil, err
 	}
 
 	ref, err := containerdService.DumpRootfs(ctx, args.ContainerID, args.ImageRef, args.Namespace)
 	if err != nil {
-		return &task.ContainerdRootfsDumpResp{}, err
+		return nil, err
 	}
 
 	return &task.ContainerdRootfsDumpResp{ImageRef: ref}, nil
